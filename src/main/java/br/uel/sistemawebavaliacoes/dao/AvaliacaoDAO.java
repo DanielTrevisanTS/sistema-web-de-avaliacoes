@@ -1,5 +1,6 @@
 package br.uel.sistemawebavaliacoes.dao;
 
+import br.uel.sistemawebavaliacoes.model.Alternativa;
 import br.uel.sistemawebavaliacoes.model.Avaliacao;
 import br.uel.sistemawebavaliacoes.model.AvaliacaoQuestao;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Time;
+import java.sql.Timestamp;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -49,7 +51,6 @@ public class AvaliacaoDAO {
 
         int idAvaliacao = keyHolder.getKey().intValue();
 
-        // RF3 + RF6: Composição das questões na avaliação com ordem e valor específico
         String sqlItem = "INSERT INTO avaliacao_questao (id_avaliacao, id_questao, ordem, valor) VALUES (?, ?, ?, ?)";
         int ordemSequencial = 1;
         for (AvaliacaoQuestao item : avaliacao.getQuestoes()) {
@@ -58,9 +59,7 @@ public class AvaliacaoDAO {
             ordemSequencial++;
         }
 
-        // RF4: Atribuição dos alunos (por turma e/ou seleção individual)
         atribuirAlunosInterno(idAvaliacao, avaliacao.getAlunosIds(), avaliacao.getTurmaAtribuida());
-
         return idAvaliacao;
     }
 
@@ -86,6 +85,18 @@ public class AvaliacaoDAO {
         for (Integer idAluno : destinatarios) {
             jdbcTemplate.update(sqlAtribuicao, idAvaliacao, idAluno);
         }
+    }
+
+    @Transactional
+    public void excluir(int idAvaliacao) {
+        Integer respostasCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM resposta WHERE id_avaliacao = ?", Integer.class, idAvaliacao);
+        if (respostasCount != null && respostasCount > 0) {
+            throw new IllegalStateException("Não é possível excluir: já existem respostas enviadas para esta avaliação.");
+        }
+        jdbcTemplate.update("DELETE FROM avaliacao_usuario WHERE id_avaliacao = ?", idAvaliacao);
+        jdbcTemplate.update("DELETE FROM avaliacao_questao WHERE id_avaliacao = ?", idAvaliacao);
+        jdbcTemplate.update("DELETE FROM avaliacao WHERE id_avaliacao = ?", idAvaliacao);
     }
 
     public List<Avaliacao> listarTodas() {
@@ -117,7 +128,40 @@ public class AvaliacaoDAO {
         });
     }
 
-    public Avaliacao buscarDetalhes(int idAvaliacao) {
+    public List<Avaliacao> listarPorAluno(int idAluno) {
+        String sql = """
+                SELECT a.id_avaliacao, a.titulo, a.descricao, a.data_aplicacao, a.hora_inicio, a.hora_fim,
+                       u.nome AS nome_professor, au.status, au.data_submissao,
+                       COALESCE((SELECT SUM(aq.valor) FROM avaliacao_questao aq WHERE aq.id_avaliacao = a.id_avaliacao), 0) AS valor_total,
+                       COALESCE((SELECT SUM(r.nota_obtida) FROM resposta r WHERE r.id_avaliacao = a.id_avaliacao AND r.id_aluno = au.id_aluno), 0) AS nota_final
+                FROM avaliacao_usuario au
+                JOIN avaliacao a ON a.id_avaliacao = au.id_avaliacao
+                JOIN usuario u ON u.id_usuario = a.id_professor
+                WHERE au.id_aluno = ?
+                ORDER BY a.data_aplicacao DESC, a.id_avaliacao DESC
+                """;
+
+        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+            Avaliacao a = new Avaliacao();
+            a.setIdAvaliacao(rs.getInt("id_avaliacao"));
+            a.setTitulo(rs.getString("titulo"));
+            a.setDescricao(rs.getString("descricao"));
+            a.setDataAplicacao(rs.getDate("data_aplicacao").toLocalDate());
+            a.setHoraInicio(rs.getTime("hora_inicio").toLocalTime());
+            a.setHoraFim(rs.getTime("hora_fim").toLocalTime());
+            a.setNomeProfessor(rs.getString("nome_professor"));
+            a.setStatusAluno(rs.getString("status"));
+            Timestamp ts = rs.getTimestamp("data_submissao");
+            if (ts != null) {
+                a.setDataSubmissao(ts.toLocalDateTime());
+            }
+            a.setValorTotal(rs.getBigDecimal("valor_total"));
+            a.setNotaFinal(rs.getBigDecimal("nota_final"));
+            return a;
+        }, idAluno);
+    }
+
+    public Avaliacao buscarDetalhes(int idAvaliacao, boolean ocultarGabarito) {
         String sqlAvaliacao = """
                 SELECT a.id_avaliacao, a.titulo, a.descricao, a.data_aplicacao, a.hora_inicio, a.hora_fim,
                        a.id_professor, u.nome AS nome_professor
@@ -158,7 +202,11 @@ public class AvaliacaoDAO {
             item.setTipo(rs.getString("tipo"));
             item.setDisciplina(rs.getString("disciplina"));
             if ("MULTIPLA_ESCOLHA".equals(item.getTipo())) {
-                item.setAlternativas(questaoDAO.listarAlternativasPorQuestao(item.getIdQuestao()));
+                List<Alternativa> alts = questaoDAO.listarAlternativasPorQuestao(item.getIdQuestao());
+                if (ocultarGabarito) {
+                    alts.forEach(alt -> alt.setCorreta(false));
+                }
+                item.setAlternativas(alts);
             }
             return item;
         }, idAvaliacao);

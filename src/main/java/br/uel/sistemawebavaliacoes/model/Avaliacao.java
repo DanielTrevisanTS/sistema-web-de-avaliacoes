@@ -2,6 +2,7 @@ package br.uel.sistemawebavaliacoes.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +19,9 @@ public class Avaliacao {
     private BigDecimal valorTotal;
     private Integer totalQuestoes;
     private Integer totalAlunos;
+    private String statusAluno;
+    private LocalDateTime dataSubmissao;
+    private BigDecimal notaFinal;
     private List<AvaliacaoQuestao> questoes = new ArrayList<>();
     private List<Integer> alunosIds = new ArrayList<>();
     private String turmaAtribuida;
@@ -48,6 +52,15 @@ public class Avaliacao {
 
     public BigDecimal getValorTotal() { return valorTotal; }
     public void setValorTotal(BigDecimal valorTotal) { this.valorTotal = valorTotal; }
+
+    public String getStatusAluno() { return statusAluno; }
+    public void setStatusAluno(String statusAluno) { this.statusAluno = statusAluno; }
+
+    public LocalDateTime getDataSubmissao() { return dataSubmissao; }
+    public void setDataSubmissao(LocalDateTime dataSubmissao) { this.dataSubmissao = dataSubmissao; }
+
+    public BigDecimal getNotaFinal() { return notaFinal; }
+    public void setNotaFinal(BigDecimal notaFinal) { this.notaFinal = notaFinal; }
 
     public Integer getTotalQuestoes() { return totalQuestoes; }
     public void setTotalQuestoes(Integer totalQuestoes) { this.totalQuestoes = totalQuestoes; }

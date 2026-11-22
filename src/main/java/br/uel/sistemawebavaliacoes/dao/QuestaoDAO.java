@@ -85,4 +85,10 @@ public class QuestaoDAO {
             return a;
         }, idQuestao);
     }
+
+    @Transactional
+    public void excluir(int idQuestao) {
+        jdbcTemplate.update("DELETE FROM alternativa WHERE id_questao = ?", idQuestao);
+        jdbcTemplate.update("DELETE FROM questao WHERE id_questao = ?", idQuestao);
+    }
 }

@@ -33,6 +33,13 @@ public class UsuarioDAO {
         return lista.stream().findFirst();
     }
 
+    public boolean isProfessor(Integer idUsuario) {
+        if (idUsuario == null) return false;
+        String sql = "SELECT COUNT(*) FROM usuario WHERE id_usuario = ? AND perfil = 'PROFESSOR'";
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, idUsuario);
+        return count != null && count > 0;
+    }
+
     public List<Usuario> listarAlunos() {
         String sql = "SELECT id_usuario, nome, email, perfil, turma FROM usuario WHERE perfil = 'ALUNO' ORDER BY turma, nome";
         return jdbcTemplate.query(sql, usuarioMapper);

@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Web de Avaliações - UEL</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f4f6f8; color: #1f2937; }
+        header { background: #14532d; color: #fff; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
+        header h1 { margin: 0; font-size: 1.2rem; }
+        nav { background: #166534; padding: 8px 24px; display: flex; gap: 10px; flex-wrap: wrap; }
+        nav button { background: transparent; border: 1px solid rgba(255,255,255,0.4); color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        nav button.active, nav button:hover { background: #fff; color: #14532d; }
+        main { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #14532d; font-size: 1.15rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; }
+        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
+        .btn { background: #15803d; color: #fff; border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; margin-top: 10px; }
+        .btn:hover { background: #166534; }
+        .btn-sec { background: #4b5563; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+        .btn-del { background: #dc2626; color: #fff; border: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; }
+        .btn-del:hover { background: #b91c1c; }
+        .alt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .alt-row input[type="radio"] { width: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.9rem; }
+        th, td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; }
+        th { background: #f9fafb; font-weight: 600; }
+        .badge { padding: 3px 8px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
+        .badge-me { background: #dbeafe; color: #1e40af; }
+        .badge-tl { background: #fef3c7; color: #92400e; }
+        .badge-ok { background: #dcfce7; color: #166534; }
+        .hidden { display: none !important; }
+        .msg { padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.9rem; }
+        .msg-ok { background: #dcfce7; color: #166534; }
+        .msg-err { background: #fee2e2; color: #991b1b; }
+        .questao-prova { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 14px; background: #fafafa; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Sistema de Avaliações de Aprendizagem</h1>
+    <div id="user-bar" style="display: flex; align-items: center; gap: 10px;">
+        <span id="user-info">Não autenticado</span>
+        <button id="btn-sair" class="btn-sec hidden" onclick="sair()">Sair</button>
+    </div>
+</header>
+
+<nav>
+    <button id="tab-login" class="active" onclick="mostrarAba('login')">Login</button>
+    <button id="tab-questoes" class="hidden" onclick="mostrarAba('questoes')">Questões (RF1)</button>
+    <button id="tab-avaliacoes" class="hidden" onclick="mostrarAba('avaliacoes')">Avaliações (RF2 a RF4)</button>
+    <button id="tab-correcao" class="hidden" onclick="mostrarAba('correcao')">Correção Discursivas (RF6)</button>
+    <button id="tab-aluno" class="hidden" onclick="mostrarAba('aluno')">Minhas Avaliações (RF5)</button>
+</nav>
+
+<main>
+    <!-- ABA LOGIN -->
+    <section id="sec-login" class="card">
+        <h2>Identificação do Usuário</h2>
+        <div class="grid-2">
+            <div>
+                <label>E-mail</label>
+                <input type="email" id="login-email" placeholder="Digite seu e-mail institucional">
+            </div>
+            <div>
+                <label>Senha</label>
+                <input type="password" id="login-senha" placeholder="Digite sua senha">
+            </div>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <button class="btn" onclick="fazerLogin()">Entrar</button>
+            <button class="btn-sec" style="margin-top: 10px;" onclick="preencherLogin('carlos.mendes@uel.br', '123456')">Preencher Professor (Carlos)</button>
+            <button class="btn-sec" style="margin-top: 10px;" onclick="preencherLogin('ana.silva@uel.br', '123456')">Preencher Aluna (Ana Silva)</button>
+        </div>
+        <div id="login-msg"></div>
+    </section>
+
+    <!-- ABA QUESTÕES (RF1 - PROFESSOR) -->
+    <section id="sec-questoes" class="hidden">
+        <div class="card">
+            <h2>Cadastrar Nova Questão (RF1)</h2>
+            <div class="grid-2">
+                <div>
+                    <label>Tipo da Questão</label>
+                    <select id="q-tipo" onchange="alternarTipoQuestao()">
+                        <option value="MULTIPLA_ESCOLHA">Múltipla Escolha</option>
+                        <option value="TEXTO_LIVRE">Texto Livre (Discursiva)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Disciplina</label>
+                    <input type="text" id="q-disciplina" value="Banco de Dados">
+                </div>
+            </div>
+            <div style="margin-top: 12px;">
+                <label>Enunciado</label>
+                <textarea id="q-enunciado" rows="3" placeholder="Digite o enunciado da questão..."></textarea>
+            </div>
+            <div id="box-alternativas" style="margin-top: 12px;">
+                <label>Alternativas (marque o botão ao lado da correta)</label>
+                <div class="alt-row"><input type="radio" name="alt-correta" value="0" checked><input type="text" class="alt-texto" placeholder="Alternativa A"></div>
+                <div class="alt-row"><input type="radio" name="alt-correta" value="1"><input type="text" class="alt-texto" placeholder="Alternativa B"></div>
+                <div class="alt-row"><input type="radio" name="alt-correta" value="2"><input type="text" class="alt-texto" placeholder="Alternativa C"></div>
+                <div class="alt-row"><input type="radio" name="alt-correta" value="3"><input type="text" class="alt-texto" placeholder="Alternativa D"></div>
+            </div>
+            <button class="btn" onclick="salvarQuestao()">Salvar Questão</button>
+            <div id="q-msg"></div>
+        </div>
+
+        <div class="card">
+            <h2>Banco de Questões Cadastradas</h2>
+            <div id="q-del-msg"></div>
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Tipo</th>
+                    <th>Disciplina</th>
+                    <th>Enunciado</th>
+                    <th>Professor</th>
+                    <th>Ação</th>
+                </tr>
+                </thead>
+                <tbody id="lista-questoes"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ABA AVALIAÇÕES (RF2 a RF4 - PROFESSOR) -->
+    <section id="sec-avaliacoes" class="hidden">
+        <div class="card">
+            <h2>Cadastrar e Montar Avaliação (RF2, RF3 e RF4)</h2>
+            <div class="grid-2">
+                <div>
+                    <label>Título da Avaliação (RF2)</label>
+                    <input type="text" id="av-titulo" placeholder="Ex.: Prova Substitutiva de BD">
+                </div>
+                <div>
+                    <label>Descrição</label>
+                    <input type="text" id="av-descricao" placeholder="Conteúdo cobrado na avaliação">
+                </div>
+            </div>
+            <div class="grid-3" style="margin-top: 12px;">
+                <div>
+                    <label>Data de Aplicação</label>
+                    <input type="date" id="av-data" value="2026-11-25">
+                </div>
+                <div>
+                    <label>Hora Início</label>
+                    <input type="time" id="av-inicio" value="19:15">
+                </div>
+                <div>
+                    <label>Hora Fim</label>
+                    <input type="time" id="av-fim" value="21:00">
+                </div>
+            </div>
+            <div style="margin-top: 16px;">
+                <label>Selecionar Questões e Definir Valor na Avaliação (RF3)</label>
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="width: 50px;">Usar</th>
+                        <th>ID</th>
+                        <th>Enunciado</th>
+                        <th>Tipo</th>
+                        <th style="width: 110px;">Valor (pts)</th>
+                    </tr>
+                    </thead>
+                    <tbody id="selecao-questoes"></tbody>
+                </table>
+            </div>
+            <div class="grid-2" style="margin-top: 16px;">
+                <div>
+                    <label>Atribuir para uma Turma inteira (RF4)</label>
+                    <select id="av-turma"><option value="">-- Selecione uma turma (opcional) --</option></select>
+                </div>
+                <div>
+                    <label>Ou selecionar Alunos específicos (segure Ctrl)</label>
+                    <select id="av-alunos" multiple size="4"></select>
+                </div>
+            </div>
+            <button class="btn" onclick="salvarAvaliacao()">Criar Avaliação</button>
+            <div id="av-msg"></div>
+        </div>
+
+        <div class="card">
+            <h2>Avaliações Cadastradas</h2>
+            <div id="av-del-msg"></div>
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Título</th>
+                    <th>Data / Horário</th>
+                    <th>Questões</th>
+                    <th>Valor Total</th>
+                    <th>Alunos</th>
+                    <th>Ação</th>
+                </tr>
+                </thead>
+                <tbody id="lista-avaliacoes"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ABA CORREÇÃO DISCURSIVAS (RF6 - PROFESSOR) -->
+    <section id="sec-correcao" class="hidden">
+        <div class="card">
+            <h2>Correção de Questões Discursivas Pendentes (RF6)</h2>
+            <div id="corr-msg"></div>
+            <div id="lista-pendentes"></div>
+        </div>
+    </section>
+
+    <!-- ABA MINHAS AVALIAÇÕES (RF5 - ALUNO) -->
+    <section id="sec-aluno" class="hidden">
+        <div class="card">
+            <h2>Minhas Avaliações Atribuídas (RF5)</h2>
+            <div id="aluno-msg"></div>
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Avaliação</th>
+                    <th>Data / Horário</th>
+                    <th>Status</th>
+                    <th>Nota Obtida</th>
+                    <th>Ação</th>
+                </tr>
+                </thead>
+                <tbody id="lista-avaliacoes-aluno"></tbody>
+            </table>
+        </div>
+
+        <div id="box-realizar-prova" class="card hidden">
+            <h2 id="titulo-prova-atual">Realizando Avaliação</h2>
+            <div id="corpo-prova"></div>
+            <button class="btn" onclick="enviarRespostasProva()">Enviar Avaliação</button>
+            <button class="btn-sec" onclick="fecharCaixaProva()">Cancelar</button>
+        </div>
+
+        <div id="box-boletim-aluno" class="card hidden">
+            <h2 id="titulo-boletim">Detalhamento das Respostas e Notas</h2>
+            <table>
+                <thead>
+                <tr>
+                    <th>Questão</th>
+                    <th>Sua Resposta</th>
+                    <th>Status</th>
+                    <th>Nota</th>
+                </tr>
+                </thead>
+                <tbody id="corpo-boletim"></tbody>
+            </table>
+            <button class="btn-sec" style="margin-top: 10px;" onclick="document.getElementById('box-boletim-aluno').classList.add('hidden')">Fechar</button>
+        </div>
+    </section>
+</main>
+
+<script>
+    let usuarioLogado = null;
+    let avaliacaoEmAndamento = null;
+
+    function preencherLogin(email, senha) {
+        document.getElementById('login-email').value = email;
+        document.getElementById('login-senha').value = senha;
+    }
+
+    function atualizarMenuPorPerfil() {
+        const isProf = usuarioLogado && usuarioLogado.perfil === 'PROFESSOR';
+        const isAluno = usuarioLogado && usuarioLogado.perfil === 'ALUNO';
+
+        document.getElementById('tab-questoes').classList.toggle('hidden', !isProf);
+        document.getElementById('tab-avaliacoes').classList.toggle('hidden', !isProf);
+        document.getElementById('tab-correcao').classList.toggle('hidden', !isProf);
+        document.getElementById('tab-aluno').classList.toggle('hidden', !isAluno);
+        document.getElementById('btn-sair').classList.toggle('hidden', !usuarioLogado);
+
+        document.getElementById('user-info').textContent = usuarioLogado
+            ? `${usuarioLogado.nome} (${usuarioLogado.perfil})`
+            : 'Não autenticado';
+    }
+
+    function mostrarAba(aba) {
+        if (aba !== 'login' && !usuarioLogado) {
+            alert('Faça login primeiro.');
+            return;
+        }
+        ['login', 'questoes', 'avaliacoes', 'correcao', 'aluno'].forEach(nome => {
+            document.getElementById(`sec-${nome}`).classList.toggle('hidden', nome !== aba);
+            document.getElementById(`tab-${nome}`).classList.toggle('active', nome === aba);
+        });
+        if (aba === 'questoes') carregarQuestoes();
+        if (aba === 'avaliacoes') { carregarAvaliacoes(); carregarDadosMontagem(); }
+        if (aba === 'correcao') carregarPendentes();
+        if (aba === 'aluno') carregarAvaliacoesAluno();
+    }
+
+    async function fazerLogin() {
+        const email = document.getElementById('login-email').value;
+        const senha = document.getElementById('login-senha').value;
+        const resp = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, senha })
+        });
+        const data = await resp.json();
+        const box = document.getElementById('login-msg');
+        if (resp.ok) {
+            usuarioLogado = data;
+            atualizarMenuPorPerfil();
+            box.innerHTML = `<div class="msg msg-ok">Bem-vindo(a), ${data.nome}!</div>`;
+            mostrarAba(data.perfil === 'PROFESSOR' ? 'questoes' : 'aluno');
+        } else {
+            box.innerHTML = `<div class="msg msg-err">${data.erro}</div>`;
+        }
+    }
+
+    function sair() {
+        usuarioLogado = null;
+        atualizarMenuPorPerfil();
+        mostrarAba('login');
+        document.getElementById('login-msg').innerHTML = '';
+    }
+
+    function alternarTipoQuestao() {
+        const tipo = document.getElementById('q-tipo').value;
+        document.getElementById('box-alternativas').classList.toggle('hidden', tipo !== 'MULTIPLA_ESCOLHA');
+    }
+
+    async function carregarQuestoes() {
+        const resp = await fetch('/api/questoes');
+        const questoes = await resp.json();
+        document.getElementById('lista-questoes').innerHTML = questoes.map(q => `
+            <tr>
+                <td>${q.idQuestao}</td>
+                <td><span class="badge ${q.tipo === 'MULTIPLA_ESCOLHA' ? 'badge-me' : 'badge-tl'}">${q.tipo}</span></td>
+                <td>${q.disciplina}</td>
+                <td>${q.enunciado}</td>
+                <td>${q.nomeProfessor}</td>
+                <td><button class="btn-del" onclick="excluirQuestao(${q.idQuestao})">Excluir</button></td>
+            </tr>
+        `).join('');
+    }
+
+    async function excluirQuestao(id) {
+        if (!confirm(`Deseja realmente excluir a questão #${id}?`)) return;
+        const resp = await fetch(`/api/questoes/${id}?idUsuario=${usuarioLogado.idUsuario}`, { method: 'DELETE' });
+        const data = await resp.json();
+        const box = document.getElementById('q-del-msg');
+        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${data.mensagem || data.erro}</div>`;
+        if (resp.ok) carregarQuestoes();
+    }
+
+    async function salvarQuestao() {
+        const tipo = document.getElementById('q-tipo').value;
+        const disciplina = document.getElementById('q-disciplina').value;
+        const enunciado = document.getElementById('q-enunciado').value;
+        let alternativas = [];
+
+        if (tipo === 'MULTIPLA_ESCOLHA') {
+            const corretaIdx = parseInt(document.querySelector('input[name="alt-correta"]:checked').value);
+            document.querySelectorAll('.alt-texto').forEach((inp, idx) => {
+                if (inp.value.trim()) alternativas.push({ texto: inp.value.trim(), correta: idx === corretaIdx });
+            });
+        }
+
+        const resp = await fetch('/api/questoes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enunciado, tipo, disciplina, idProfessor: usuarioLogado.idUsuario, alternativas })
+        });
+        const data = await resp.json();
+        const box = document.getElementById('q-msg');
+        if (resp.ok) {
+            box.innerHTML = `<div class="msg msg-ok">Questão #${data.idQuestao} cadastrada com sucesso!</div>`;
+            document.getElementById('q-enunciado').value = '';
+            document.querySelectorAll('.alt-texto').forEach(i => i.value = '');
+            carregarQuestoes();
+        } else {
+            box.innerHTML = `<div class="msg msg-err">${data.erro}</div>`;
+        }
+    }
+
+    async function carregarDadosMontagem() {
+        const [qResp, tResp, aResp] = await Promise.all([fetch('/api/questoes'), fetch('/api/turmas'), fetch('/api/alunos')]);
+        const questoes = await qResp.json();
+        const turmas = await tResp.json();
+        const alunos = await aResp.json();
+
+        document.getElementById('selecao-questoes').innerHTML = questoes.map(q => `
+            <tr>
+                <td><input type="checkbox" class="chk-questao" value="${q.idQuestao}"></td>
+                <td>${q.idQuestao}</td>
+                <td>${q.enunciado}</td>
+                <td>${q.tipo}</td>
+                <td><input type="number" step="0.5" min="0.5" value="2.0" id="val-q-${q.idQuestao}"></td>
+            </tr>
+        `).join('');
+
+        document.getElementById('av-turma').innerHTML = '<option value="">-- Selecione uma turma (opcional) --</option>' +
+            turmas.map(t => `<option value="${t}">${t}</option>`).join('');
+        document.getElementById('av-alunos').innerHTML = alunos.map(a =>
+            `<option value="${a.idUsuario}">${a.nome} (${a.turma})</option>`
+        ).join('');
+    }
+
+    async function salvarAvaliacao() {
+        const questoesSelecionadas = [];
+        let ordem = 1;
+        document.querySelectorAll('.chk-questao:checked').forEach(chk => {
+            const idQuestao = parseInt(chk.value);
+            const valor = parseFloat(document.getElementById(`val-q-${idQuestao}`).value);
+            questoesSelecionadas.push({ idQuestao, ordem: ordem++, valor });
+        });
+
+        const alunosIds = Array.from(document.getElementById('av-alunos').selectedOptions).map(opt => parseInt(opt.value));
+        const payload = {
+            titulo: document.getElementById('av-titulo').value,
+            descricao: document.getElementById('av-descricao').value,
+            dataAplicacao: document.getElementById('av-data').value,
+            horaInicio: document.getElementById('av-inicio').value + ':00',
+            horaFim: document.getElementById('av-fim').value + ':00',
+            idProfessor: usuarioLogado.idUsuario,
+            questoes: questoesSelecionadas,
+            turmaAtribuida: document.getElementById('av-turma').value,
+            alunosIds
+        };
+
+        const resp = await fetch('/api/avaliacoes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        const box = document.getElementById('av-msg');
+        if (resp.ok) {
+            box.innerHTML = `<div class="msg msg-ok">Avaliação #${data.idAvaliacao} criada com sucesso!</div>`;
+            carregarAvaliacoes();
+        } else {
+            box.innerHTML = `<div class="msg msg-err">${data.erro}</div>`;
+        }
+    }
+
+    async function carregarAvaliacoes() {
+        const resp = await fetch('/api/avaliacoes');
+        const avaliacoes = await resp.json();
+        document.getElementById('lista-avaliacoes').innerHTML = avaliacoes.map(a => `
+            <tr>
+                <td>${a.idAvaliacao}</td>
+                <td><strong>${a.titulo}</strong><br><small>${a.descricao || ''}</small></td>
+                <td>${a.dataAplicacao} (${a.horaInicio} - ${a.horaFim})</td>
+                <td>${a.totalQuestoes}</td>
+                <td>${Number(a.valorTotal).toFixed(2)} pts</td>
+                <td>${a.totalAlunos}</td>
+                <td><button class="btn-del" onclick="excluirAvaliacao(${a.idAvaliacao})">Excluir</button></td>
+            </tr>
+        `).join('');
+    }
+
+    async function excluirAvaliacao(id) {
+        if (!confirm(`Deseja realmente excluir a avaliação #${id}?`)) return;
+        const resp = await fetch(`/api/avaliacoes/${id}?idUsuario=${usuarioLogado.idUsuario}`, { method: 'DELETE' });
+        const data = await resp.json();
+        const box = document.getElementById('av-del-msg');
+        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${data.mensagem || data.erro}</div>`;
+        if (resp.ok) carregarAvaliacoes();
+    }
+
+    // --- RF6: CORREÇÃO DE DISCURSIVAS (PROFESSOR) ---
+    async function carregarPendentes() {
+        const resp = await fetch('/api/respostas/pendentes');
+        const pendentes = await resp.json();
+        const box = document.getElementById('lista-pendentes');
+        if (pendentes.length === 0) {
+            box.innerHTML = '<p>Nenhuma resposta discursiva pendente de correção.</p>';
+            return;
+        }
+        box.innerHTML = pendentes.map(p => `
+            <div class="questao-prova">
+                <div><strong>Avaliação:</strong> ${p.tituloAvaliacao} | <strong>Aluno:</strong> ${p.nomeAluno} (${p.turmaAluno})</div>
+                <p><strong>Enunciado (Valor máximo: ${Number(p.valorMaximo).toFixed(2)} pts):</strong> ${p.enunciado}</p>
+                <p style="background:#fff; padding:10px; border-radius:6px; border:1px solid #d1d5db;"><strong>Resposta do Aluno:</strong><br>${p.textoResposta || '<em>(Em branco)</em>'}</p>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="number" step="0.25" min="0" max="${p.valorMaximo}" id="nota-resp-${p.idResposta}" placeholder="Nota (0 a ${p.valorMaximo})" style="width:180px;">
+                    <button class="btn" style="margin-top:0;" onclick="salvarNotaDiscursiva(${p.idResposta})">Lançar Nota</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function salvarNotaDiscursiva(idResposta) {
+        const nota = parseFloat(document.getElementById(`nota-resp-${idResposta}`).value);
+        const resp = await fetch(`/api/respostas/${idResposta}/corrigir`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idProfessor: usuarioLogado.idUsuario, nota })
+        });
+        const data = await resp.json();
+        const box = document.getElementById('corr-msg');
+        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${data.mensagem || data.erro}</div>`;
+        if (resp.ok) carregarPendentes();
+    }
+
+    // --- RF5: REALIZAÇÃO DE AVALIAÇÃO E BOLETIM (ALUNO) ---
+    async function carregarAvaliacoesAluno() {
+        const resp = await fetch(`/api/avaliacoes/aluno/${usuarioLogado.idUsuario}`);
+        const lista = await resp.json();
+        document.getElementById('lista-avaliacoes-aluno').innerHTML = lista.map(a => `
+            <tr>
+                <td>${a.idAvaliacao}</td>
+                <td><strong>${a.titulo}</strong><br><small>${a.descricao || ''}</small></td>
+                <td>${a.dataAplicacao} (${a.horaInicio} - ${a.horaFim})</td>
+                <td><span class="badge ${a.statusAluno === 'PENDENTE' ? 'badge-tl' : 'badge-ok'}">${a.statusAluno}</span></td>
+                <td>${Number(a.notaFinal).toFixed(2)} / ${Number(a.valorTotal).toFixed(2)} pts</td>
+                <td>
+                    ${a.statusAluno === 'PENDENTE'
+            ? `<button class="btn" style="margin-top:0; padding:6px 12px;" onclick="abrirProva(${a.idAvaliacao})">Realizar Prova</button>`
+            : `<button class="btn-sec" onclick="verBoletim(${a.idAvaliacao}, '${a.titulo}')">Ver Correção</button>`}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function abrirProva(idAvaliacao) {
+        const resp = await fetch(`/api/avaliacoes/${idAvaliacao}?modoAluno=true`);
+        const av = await resp.json();
+        avaliacaoEmAndamento = av;
+        document.getElementById('titulo-prova-atual').textContent = `Realizando: ${av.titulo}`;
+        document.getElementById('box-boletim-aluno').classList.add('hidden');
+
+        document.getElementById('corpo-prova').innerHTML = av.questoes.map((q, idx) => `
+            <div class="questao-prova">
+                <p><strong>${idx + 1}. (${Number(q.valor).toFixed(2)} pts)</strong> ${q.enunciado}</p>
+                ${q.tipo === 'MULTIPLA_ESCOLHA'
+            ? q.alternativas.map(alt => `
+                        <label style="font-weight:400; margin-bottom:6px; cursor:pointer;">
+                            <input type="radio" name="resp-q-${q.idQuestao}" value="${alt.idAlternativa}" style="width:auto; margin-right:6px;">
+                            ${alt.texto}
+                        </label>
+                    `).join('')
+            : `<textarea id="resp-txt-${q.idQuestao}" rows="3" placeholder="Escreva sua resposta discursiva..."></textarea>`
+        }
+            </div>
+        `).join('');
+        document.getElementById('box-realizar-prova').classList.remove('hidden');
+    }
+
+    function fecharCaixaProva() {
+        avaliacaoEmAndamento = null;
+        document.getElementById('box-realizar-prova').classList.add('hidden');
+    }
+
+    async function enviarRespostasProva() {
+        if (!avaliacaoEmAndamento) return;
+        const box = document.getElementById('aluno-msg');
+        const respostas = [];
+
+        for (const q of avaliacaoEmAndamento.questoes) {
+            if (q.tipo === 'MULTIPLA_ESCOLHA') {
+                const marcada = document.querySelector(`input[name="resp-q-${q.idQuestao}"]:checked`);
+                respostas.push({
+                    idQuestao: q.idQuestao,
+                    idAlternativaEscolhida: marcada ? parseInt(marcada.value) : null
+                });
+            } else {
+                const campoTexto = document.getElementById(`resp-txt-${q.idQuestao}`);
+                const texto = campoTexto ? campoTexto.value : '';
+                if (!texto || !texto.trim()) {
+                    box.innerHTML = `<div class="msg msg-err">Preencha a resposta da questão discursiva antes de enviar.</div>`;
+                    if (campoTexto) campoTexto.focus();
+                    return;
+                }
+                respostas.push({
+                    idQuestao: q.idQuestao,
+                    textoResposta: texto.trim()
+                });
+            }
+        }
+
+        const resp = await fetch('/api/respostas/submeter', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                idAvaliacao: avaliacaoEmAndamento.idAvaliacao,
+                idAluno: usuarioLogado.idUsuario,
+                respostas
+            })
+        });
+        const data = await resp.json();
+        const textoMsg = data.mensagem || data.erro || data.error || 'Erro ao processar envio.';
+        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${textoMsg}</div>`;
+        if (resp.ok) {
+            fecharCaixaProva();
+            carregarAvaliacoesAluno();
+        }
+    }
+
+    async function verBoletim(idAvaliacao, titulo) {
+        const resp = await fetch(`/api/respostas/boletim?idAvaliacao=${idAvaliacao}&idAluno=${usuarioLogado.idUsuario}`);
+        const itens = await resp.json();
+        document.getElementById('titulo-boletim').textContent = `Boletim: ${titulo}`;
+        document.getElementById('corpo-boletim').innerHTML = itens.map((r, i) => `
+            <tr>
+                <td><strong>${i + 1}.</strong> ${r.enunciado}</td>
+                <td>${r.tipoQuestao === 'MULTIPLA_ESCOLHA' ? (r.textoAlternativaEscolhida || '<em>Não respondida</em>') : (r.textoResposta || '<em>Em branco</em>')}</td>
+                <td>${r.corrigida ? '<span class="badge badge-ok">Corrigida</span>' : '<span class="badge badge-tl">Aguardando professor</span>'}</td>
+                <td><strong>${Number(r.notaObtida).toFixed(2)}</strong> / ${Number(r.valorMaximo).toFixed(2)}</td>
+            </tr>
+        `).join('');
+        document.getElementById('box-boletim-aluno').classList.remove('hidden');
+    }
+</script>
+</body>
+</html>
