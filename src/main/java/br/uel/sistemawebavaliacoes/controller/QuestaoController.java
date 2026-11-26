@@ -9,8 +9,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/questoes")
@@ -38,15 +41,50 @@ public class QuestaoController {
         if (questao.getEnunciado() == null || questao.getEnunciado().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("erro", "O enunciado é obrigatório."));
         }
-        if ("MULTIPLA_ESCOLHA".equals(questao.getTipo())) {
-            boolean temCorreta = questao.getAlternativas() != null &&
-                    questao.getAlternativas().stream().anyMatch(Alternativa::isCorreta);
-            if (!temCorreta) {
-                return ResponseEntity.badRequest().body(Map.of("erro", "Marque uma alternativa correta."));
-            }
+        if (questao.getDisciplina() == null || questao.getDisciplina().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("erro", "A disciplina é obrigatória."));
         }
-        int id = questaoDAO.cadastrar(questao);
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("idQuestao", id));
+        if (!"MULTIPLA_ESCOLHA".equals(questao.getTipo()) && !"TEXTO_LIVRE".equals(questao.getTipo())) {
+            return ResponseEntity.badRequest().body(Map.of("erro", "Tipo de questão inválido."));
+        }
+
+        questao.setEnunciado(questao.getEnunciado().trim());
+        questao.setDisciplina(questao.getDisciplina().trim());
+
+        if ("MULTIPLA_ESCOLHA".equals(questao.getTipo())) {
+            List<Alternativa> validas = new ArrayList<>();
+            Set<String> textos = new HashSet<>();
+            if (questao.getAlternativas() != null) {
+                for (Alternativa alt : questao.getAlternativas()) {
+                    if (alt != null && alt.getTexto() != null && !alt.getTexto().isBlank()) {
+                        String textoLimpo = alt.getTexto().trim();
+                        if (!textos.add(textoLimpo)) {
+                            return ResponseEntity.badRequest()
+                                    .body(Map.of("erro", "Não é permitido cadastrar alternativas com texto duplicado."));
+                        }
+                        alt.setTexto(textoLimpo);
+                        validas.add(alt);
+                    }
+                }
+            }
+            if (validas.size() < 2) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("erro", "Informe pelo menos 2 alternativas preenchidas para questões de múltipla escolha."));
+            }
+            long qtdCorretas = validas.stream().filter(Alternativa::isCorreta).count();
+            if (qtdCorretas != 1) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("erro", "Marque exatamente uma alternativa preenchida como correta."));
+            }
+            questao.setAlternativas(validas);
+        }
+
+        try {
+            int id = questaoDAO.cadastrar(questao);
+            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("idQuestao", id));
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.badRequest().body(Map.of("erro", "Dados inválidos para cadastro da questão."));
+        }
     }
 
     @DeleteMapping("/{id}")
@@ -58,7 +96,9 @@ public class QuestaoController {
         try {
             questaoDAO.excluir(id);
             return ResponseEntity.ok(Map.of("mensagem", "Questão excluída com sucesso."));
-        } catch (DataIntegrityViolationException e) {
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("erro", e.getMessage()));
+        } catch (IllegalStateException | DataIntegrityViolationException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("erro", "Não é possível excluir: esta questão já está vinculada a uma avaliação."));
         }

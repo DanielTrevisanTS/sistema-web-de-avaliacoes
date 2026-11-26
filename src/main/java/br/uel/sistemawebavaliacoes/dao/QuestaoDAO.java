@@ -34,7 +34,11 @@ public class QuestaoDAO {
             return ps;
         }, keyHolder);
 
-        int idQuestao = keyHolder.getKey().intValue();
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException("Falha ao obter o ID da questão cadastrada.");
+        }
+        int idQuestao = key.intValue();
 
         if ("MULTIPLA_ESCOLHA".equals(questao.getTipo()) && questao.getAlternativas() != null) {
             String sqlAlt = "INSERT INTO alternativa (id_questao, texto, correta) VALUES (?, ?, ?)";
@@ -65,9 +69,20 @@ public class QuestaoDAO {
             return q;
         });
 
+        String sqlTodasAlt = "SELECT id_alternativa, id_questao, texto, correta FROM alternativa ORDER BY id_questao, id_alternativa";
+        java.util.Map<Integer, List<Alternativa>> mapaAlt = new java.util.HashMap<>();
+        jdbcTemplate.query(sqlTodasAlt, rs -> {
+            Alternativa a = new Alternativa();
+            a.setIdAlternativa(rs.getInt("id_alternativa"));
+            a.setIdQuestao(rs.getInt("id_questao"));
+            a.setTexto(rs.getString("texto"));
+            a.setCorreta(rs.getBoolean("correta"));
+            mapaAlt.computeIfAbsent(a.getIdQuestao(), k -> new java.util.ArrayList<>()).add(a);
+        });
+
         for (Questao q : questoes) {
             if ("MULTIPLA_ESCOLHA".equals(q.getTipo())) {
-                q.setAlternativas(listarAlternativasPorQuestao(q.getIdQuestao()));
+                q.setAlternativas(mapaAlt.getOrDefault(q.getIdQuestao(), List.of()));
             }
         }
 
@@ -88,7 +103,15 @@ public class QuestaoDAO {
 
     @Transactional
     public void excluir(int idQuestao) {
+        Integer vinculos = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM avaliacao_questao WHERE id_questao = ?", Integer.class, idQuestao);
+        if (vinculos != null && vinculos > 0) {
+            throw new IllegalStateException("Não é possível excluir: esta questão já está vinculada a uma avaliação.");
+        }
         jdbcTemplate.update("DELETE FROM alternativa WHERE id_questao = ?", idQuestao);
-        jdbcTemplate.update("DELETE FROM questao WHERE id_questao = ?", idQuestao);
+        int removidas = jdbcTemplate.update("DELETE FROM questao WHERE id_questao = ?", idQuestao);
+        if (removidas == 0) {
+            throw new IllegalArgumentException("Questão não encontrada.");
+        }
     }
 }

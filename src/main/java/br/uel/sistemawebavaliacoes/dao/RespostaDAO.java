@@ -21,12 +21,15 @@ public class RespostaDAO {
 
     @Transactional
     public void submeterAvaliacao(int idAvaliacao, int idAluno, List<Resposta> respostasEnviadas) {
-        String statusAtual = jdbcTemplate.queryForObject(
+        List<String> statusList = jdbcTemplate.queryForList(
                 "SELECT status FROM avaliacao_usuario WHERE id_avaliacao = ? AND id_aluno = ?",
                 String.class, idAvaliacao, idAluno);
 
-        if (!"PENDENTE".equals(statusAtual)) {
-            throw new IllegalStateException("Esta avaliação já foi respondida ou não está atribuída a você.");
+        if (statusList.isEmpty()) {
+            throw new IllegalStateException("Esta avaliação não está atribuída a você.");
+        }
+        if (!"PENDENTE".equals(statusList.get(0))) {
+            throw new IllegalStateException("Esta avaliação já foi respondida.");
         }
 
         String sqlItens = """
@@ -45,6 +48,10 @@ public class RespostaDAO {
             );
         }, idAvaliacao);
 
+        if (mapaQuestoes.isEmpty()) {
+            throw new IllegalStateException("Esta avaliação não possui questões cadastradas.");
+        }
+
         Map<Integer, Resposta> mapaEnviadas = new HashMap<>();
         if (respostasEnviadas != null) {
             for (Resposta r : respostasEnviadas) {
@@ -52,10 +59,14 @@ public class RespostaDAO {
             }
         }
 
-        // Validação: impede resposta nula ou em branco em questões discursivas
+        // Validação: todas as questões (objetivas e discursivas) devem ser respondidas
         for (Map.Entry<Integer, ItemMeta> entry : mapaQuestoes.entrySet()) {
-            if ("TEXTO_LIVRE".equals(entry.getValue().tipo())) {
-                Resposta resp = mapaEnviadas.get(entry.getKey());
+            Resposta resp = mapaEnviadas.get(entry.getKey());
+            if ("MULTIPLA_ESCOLHA".equals(entry.getValue().tipo())) {
+                if (resp == null || resp.getIdAlternativaEscolhida() == null) {
+                    throw new IllegalArgumentException("Todas as questões de múltipla escolha devem ser respondidas antes do envio.");
+                }
+            } else {
                 if (resp == null || resp.getTextoResposta() == null || resp.getTextoResposta().isBlank()) {
                     throw new IllegalArgumentException("Todas as questões discursivas devem ser preenchidas antes do envio.");
                 }
@@ -74,46 +85,32 @@ public class RespostaDAO {
             Resposta resp = mapaEnviadas.get(idQuestao);
 
             if ("MULTIPLA_ESCOLHA".equals(meta.tipo())) {
-                Integer idAlt = (resp != null) ? resp.getIdAlternativaEscolhida() : null;
-                boolean acertou = false;
-
-                if (idAlt != null) {
-                    Integer corretaCount = jdbcTemplate.queryForObject(
-                            "SELECT COUNT(*) FROM alternativa WHERE id_alternativa = ? AND id_questao = ? AND correta = TRUE",
-                            Integer.class, idAlt, idQuestao);
-                    acertou = (corretaCount != null && corretaCount > 0);
+                Integer idAlt = resp.getIdAlternativaEscolhida();
+                Integer pertenceCount = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM alternativa WHERE id_alternativa = ? AND id_questao = ?",
+                        Integer.class, idAlt, idQuestao);
+                if (pertenceCount == null || pertenceCount == 0) {
+                    throw new IllegalArgumentException("Alternativa inválida selecionada para a questão #" + idQuestao + ".");
                 }
+
+                Integer corretaCount = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM alternativa WHERE id_alternativa = ? AND id_questao = ? AND correta = TRUE",
+                        Integer.class, idAlt, idQuestao);
+                boolean acertou = (corretaCount != null && corretaCount > 0);
 
                 BigDecimal nota = acertou ? meta.valor() : BigDecimal.ZERO;
                 jdbcTemplate.update(sqlInsert, idAvaliacao, idAluno, idQuestao, idAlt, null, nota, true);
             } else {
                 possuiDiscursiva = true;
                 String textoLimpo = resp.getTextoResposta().trim();
-                jdbcTemplate.update(sqlInsert, idAvaliacao, idAluno, idQuestao, null, textoLimpo, BigDecimal.ZERO, false);
+                jdbcTemplate.update(sqlInsert, idAvaliacao, idAluno, idQuestao, null, textoLimpo, null, false);
             }
         }
 
-        String novoStatus = possuiDiscursiva ? resolverStatusAguardandoCorrecao() : "CORRIGIDA";
+        String novoStatus = possuiDiscursiva ? "RESPONDIDA" : "CORRIGIDA";
         jdbcTemplate.update(
                 "UPDATE avaliacao_usuario SET status = ?, data_submissao = CURRENT_TIMESTAMP WHERE id_avaliacao = ? AND id_aluno = ?",
                 novoStatus, idAvaliacao, idAluno);
-    }
-
-    private String resolverStatusAguardandoCorrecao() {
-        String def = jdbcTemplate.queryForObject(
-                "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'avaliacao_usuario_status_check' LIMIT 1",
-                String.class
-        );
-        if (def != null) {
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("'([^']+)'").matcher(def);
-            while (m.find()) {
-                String statusPermitido = m.group(1);
-                if (!"PENDENTE".equalsIgnoreCase(statusPermitido) && !"CORRIGIDA".equalsIgnoreCase(statusPermitido)) {
-                    return statusPermitido;
-                }
-            }
-        }
-        return "CORRIGIDA";
     }
 
     public List<Resposta> listarDiscursivasPendentes() {
@@ -158,7 +155,11 @@ public class RespostaDAO {
                 WHERE r.id_resposta = ?
                 """;
 
-        Map<String, Object> meta = jdbcTemplate.queryForMap(sqlMeta, idResposta);
+        List<Map<String, Object>> metas = jdbcTemplate.queryForList(sqlMeta, idResposta);
+        if (metas.isEmpty()) {
+            throw new IllegalArgumentException("Resposta não encontrada.");
+        }
+        Map<String, Object> meta = metas.get(0);
         BigDecimal valorMaximo = (BigDecimal) meta.get("valor");
         int idAvaliacao = (Integer) meta.get("id_avaliacao");
         int idAluno = (Integer) meta.get("id_aluno");

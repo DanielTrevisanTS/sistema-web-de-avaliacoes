@@ -522,3 +522,10 @@ INSERT INTO resposta (id_avaliacao, id_aluno, id_questao, id_alternativa_escolhi
 (5, 18, 23, 89,   NULL, 1.00, TRUE),
 (5, 18, 24, 95,   NULL, 1.00, TRUE),
 (5, 18, 27, NULL, 'Garante baixo acoplamento e alta coesão entre interface, regras de negócio e persistência.', 1.00, TRUE);
+
+-- 8. SINCRONIZAÇÃO DAS SEQUÊNCIAS SERIAL APÓS CARGA COM IDs EXPLÍCITOS
+SELECT setval(pg_get_serial_sequence('usuario', 'id_usuario'), COALESCE(MAX(id_usuario), 1)) FROM usuario;
+SELECT setval(pg_get_serial_sequence('questao', 'id_questao'), COALESCE(MAX(id_questao), 1)) FROM questao;
+SELECT setval(pg_get_serial_sequence('alternativa', 'id_alternativa'), COALESCE(MAX(id_alternativa), 1)) FROM alternativa;
+SELECT setval(pg_get_serial_sequence('avaliacao', 'id_avaliacao'), COALESCE(MAX(id_avaliacao), 1)) FROM avaliacao;
+SELECT setval(pg_get_serial_sequence('resposta', 'id_resposta'), COALESCE(MAX(id_resposta), 1)) FROM resposta;

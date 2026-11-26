@@ -49,7 +49,11 @@ public class AvaliacaoDAO {
             return ps;
         }, keyHolder);
 
-        int idAvaliacao = keyHolder.getKey().intValue();
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException("Falha ao obter o ID da avaliação cadastrada.");
+        }
+        int idAvaliacao = key.intValue();
 
         String sqlItem = "INSERT INTO avaliacao_questao (id_avaliacao, id_questao, ordem, valor) VALUES (?, ?, ?, ?)";
         int ordemSequencial = 1;
@@ -65,6 +69,11 @@ public class AvaliacaoDAO {
 
     @Transactional
     public void atribuirAlunos(int idAvaliacao, List<Integer> alunosIds, String turma) {
+        Integer existe = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM avaliacao WHERE id_avaliacao = ?", Integer.class, idAvaliacao);
+        if (existe == null || existe == 0) {
+            throw new IllegalArgumentException("Avaliação não encontrada.");
+        }
         atribuirAlunosInterno(idAvaliacao, alunosIds, turma);
     }
 
@@ -170,7 +179,7 @@ public class AvaliacaoDAO {
                 WHERE a.id_avaliacao = ?
                 """;
 
-        Avaliacao avaliacao = jdbcTemplate.queryForObject(sqlAvaliacao, (rs, rowNum) -> {
+        List<Avaliacao> encontradas = jdbcTemplate.query(sqlAvaliacao, (rs, rowNum) -> {
             Avaliacao a = new Avaliacao();
             a.setIdAvaliacao(rs.getInt("id_avaliacao"));
             a.setTitulo(rs.getString("titulo"));
@@ -182,6 +191,11 @@ public class AvaliacaoDAO {
             a.setNomeProfessor(rs.getString("nome_professor"));
             return a;
         }, idAvaliacao);
+
+        if (encontradas.isEmpty()) {
+            throw new IllegalArgumentException("Avaliação não encontrada.");
+        }
+        Avaliacao avaliacao = encontradas.get(0);
 
         String sqlQuestoes = """
                 SELECT aq.id_avaliacao, aq.id_questao, aq.ordem, aq.valor,
