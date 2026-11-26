@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema Web de Avaliações - UEL</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #f4f6f8; color: #1f2937; }
         header { background: #14532d; color: #fff; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; }
@@ -11,11 +12,12 @@
         nav { background: #166534; padding: 8px 24px; display: flex; gap: 10px; flex-wrap: wrap; }
         nav button { background: transparent; border: 1px solid rgba(255,255,255,0.4); color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; }
         nav button.active, nav button:hover { background: #fff; color: #14532d; }
-        main { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+        main { max-width: 1150px; margin: 24px auto; padding: 0 16px; }
         .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         h2 { margin-top: 0; color: #14532d; font-size: 1.15rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; }
         label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; }
         input, select, textarea { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
         .btn { background: #15803d; color: #fff; border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; margin-top: 10px; }
@@ -25,7 +27,7 @@
         .btn-del:hover { background: #b91c1c; }
         .alt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
         .alt-row input[type="radio"] { width: auto; }
-        table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.9rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.88rem; }
         th, td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; }
         th { background: #f9fafb; font-weight: 600; }
         .badge { padding: 3px 8px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
@@ -37,6 +39,8 @@
         .msg-ok { background: #dcfce7; color: #166534; }
         .msg-err { background: #fee2e2; color: #991b1b; }
         .questao-prova { border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; margin-bottom: 14px; background: #fafafa; }
+        .chart-box { position: relative; height: 290px; width: 100%; margin-top: 12px; }
+        .sql-tag { display: inline-block; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-size: 0.76rem; padding: 2px 8px; border-radius: 4px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -55,6 +59,7 @@
     <button id="tab-avaliacoes" class="hidden" onclick="mostrarAba('avaliacoes')">Avaliações (RF2 a RF4)</button>
     <button id="tab-correcao" class="hidden" onclick="mostrarAba('correcao')">Correção Discursivas (RF6)</button>
     <button id="tab-aluno" class="hidden" onclick="mostrarAba('aluno')">Minhas Avaliações (RF5)</button>
+    <button id="tab-relatorios" class="hidden" onclick="mostrarAba('relatorios')">Relatórios e Gráficos (RF7)</button>
 </nav>
 
 <main>
@@ -259,11 +264,170 @@
             <button class="btn-sec" style="margin-top: 10px;" onclick="document.getElementById('box-boletim-aluno').classList.add('hidden')">Fechar</button>
         </div>
     </section>
+
+    <!-- ABA RELATÓRIOS E GRÁFICOS (RF7) -->
+    <section id="sec-relatorios" class="hidden">
+        <!-- RELATÓRIO 1: MÉDIA POR AVALIAÇÃO (PROFESSOR) -->
+        <div id="card-rel-1" class="card">
+            <h2>Relatório 1: Média por Avaliação e Aproveitamento</h2>
+            <span class="sql-tag">Recursos SQL: INNER JOIN • LEFT JOIN • AVG / SUM / COUNT • GROUP BY • HAVING • WHERE (BETWEEN / LIKE)</span>
+            <div class="grid-4">
+                <div>
+                    <label>Data Inicial</label>
+                    <input type="date" id="rel-dt-ini" value="2026-01-01">
+                </div>
+                <div>
+                    <label>Data Final</label>
+                    <input type="date" id="rel-dt-fim" value="2026-12-31">
+                </div>
+                <div>
+                    <label>Filtrar por Turma</label>
+                    <select id="rel-turma">
+                        <option value="">Todas as turmas</option>
+                    </select>
+                </div>
+                <div>
+                    <button class="btn" style="margin-top:0;" onclick="carregarRelatorio1()">Filtrar</button>
+                </div>
+            </div>
+            <div class="grid-2" style="margin-top: 14px;">
+                <div>
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Avaliação</th>
+                            <th>Data</th>
+                            <th>Entregas</th>
+                            <th>Média</th>
+                            <th>Máx.</th>
+                            <th>Aprov. (%)</th>
+                        </tr>
+                        </thead>
+                        <tbody id="tb-rel-1"></tbody>
+                    </table>
+                </div>
+                <div class="chart-box">
+                    <canvas id="chart-rel-1"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- RELATÓRIO 2: DESEMPENHO DO ALUNO VS MÉDIA DA TURMA E EVOLUÇÃO -->
+        <div id="card-rel-2" class="card">
+            <h2>Relatório 2: Desempenho Individual vs. Média da Turma e Evolução Temporal</h2>
+            <span class="sql-tag">Recursos SQL: INNER JOIN • LEFT JOIN • Subconsulta Correlacionada • AVG / SUM • GROUP BY • ORDER BY</span>
+            <div id="filtro-aluno-rel2" style="max-width: 380px;">
+                <label>Selecionar Aluno</label>
+                <select id="rel-aluno-select" onchange="carregarRelatorio2()"></select>
+            </div>
+            <div class="grid-2" style="margin-top: 14px;">
+                <div class="chart-box">
+                    <canvas id="chart-rel-2-barras"></canvas>
+                </div>
+                <div class="chart-box">
+                    <canvas id="chart-rel-2-linha"></canvas>
+                </div>
+            </div>
+            <table>
+                <thead>
+                <tr>
+                    <th>Avaliação</th>
+                    <th>Data</th>
+                    <th>Turma</th>
+                    <th>Nota do Aluno</th>
+                    <th>Média da Turma</th>
+                    <th>Valor Máximo</th>
+                </tr>
+                </thead>
+                <tbody id="tb-rel-2"></tbody>
+            </table>
+        </div>
+
+        <!-- RELATÓRIO 3: TOP 10 QUESTÕES MAIS ERRADAS (RANKING) -->
+        <div id="card-rel-3" class="card">
+            <h2>Relatório 3: Top 10 Questões com Maior Índice de Erro</h2>
+            <span class="sql-tag">Recursos SQL: INNER JOIN • COUNT / AVG • GROUP BY • HAVING • RANK() OVER • ORDER BY • FETCH FIRST 10 ROWS ONLY</span>
+            <div class="grid-2" style="margin-top: 12px;">
+                <div>
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>ID</th>
+                            <th>Enunciado</th>
+                            <th>Resp.</th>
+                            <th>Acerto (%)</th>
+                            <th>Erro (%)</th>
+                        </tr>
+                        </thead>
+                        <tbody id="tb-rel-3"></tbody>
+                    </table>
+                </div>
+                <div class="chart-box">
+                    <canvas id="chart-rel-3"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- RELATÓRIO 4: PENDÊNCIAS DE ENTREGA (LEFT JOIN) -->
+        <div id="card-rel-4" class="card">
+            <h2>Relatório 4: Participação e Pendências por Avaliação</h2>
+            <span class="sql-tag">Recursos SQL: LEFT JOIN • COUNT • GROUP BY • WHERE ... IN (...) • ORDER BY</span>
+            <div class="grid-2" style="margin-top: 12px;">
+                <div>
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Avaliação</th>
+                            <th>Data</th>
+                            <th>Atribuídos</th>
+                            <th>Respondidas</th>
+                            <th>Pendentes</th>
+                        </tr>
+                        </thead>
+                        <tbody id="tb-rel-4"></tbody>
+                    </table>
+                </div>
+                <div class="chart-box">
+                    <canvas id="chart-rel-4"></canvas>
+                </div>
+            </div>
+            <h3 style="font-size: 0.98rem; color: #374151; margin-top: 16px;">Alunos com Entrega Pendente (LEFT JOIN)</h3>
+            <table>
+                <thead>
+                <tr>
+                    <th>Avaliação</th>
+                    <th>Data</th>
+                    <th>Aluno</th>
+                    <th>Turma</th>
+                    <th>Status</th>
+                </tr>
+                </thead>
+                <tbody id="tb-rel-4-pendentes"></tbody>
+            </table>
+        </div>
+    </section>
 </main>
 
 <script>
     let usuarioLogado = null;
     let avaliacaoEmAndamento = null;
+    const mapaTitulosAvaliacoes = {};
+    const graficos = {};
+
+    function escaparHtml(valor) {
+        if (valor === null || valor === undefined) return '';
+        return String(valor)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function extrairErro(data, fallback = 'Erro ao processar solicitação.') {
+        return (data && (data.erro || data.error || data.message)) || fallback;
+    }
 
     function preencherLogin(email, senha) {
         document.getElementById('login-email').value = email;
@@ -278,6 +442,7 @@
         document.getElementById('tab-avaliacoes').classList.toggle('hidden', !isProf);
         document.getElementById('tab-correcao').classList.toggle('hidden', !isProf);
         document.getElementById('tab-aluno').classList.toggle('hidden', !isAluno);
+        document.getElementById('tab-relatorios').classList.toggle('hidden', !usuarioLogado);
         document.getElementById('btn-sair').classList.toggle('hidden', !usuarioLogado);
 
         document.getElementById('user-info').textContent = usuarioLogado
@@ -290,7 +455,7 @@
             alert('Faça login primeiro.');
             return;
         }
-        ['login', 'questoes', 'avaliacoes', 'correcao', 'aluno'].forEach(nome => {
+        ['login', 'questoes', 'avaliacoes', 'correcao', 'aluno', 'relatorios'].forEach(nome => {
             document.getElementById(`sec-${nome}`).classList.toggle('hidden', nome !== aba);
             document.getElementById(`tab-${nome}`).classList.toggle('active', nome === aba);
         });
@@ -298,6 +463,7 @@
         if (aba === 'avaliacoes') { carregarAvaliacoes(); carregarDadosMontagem(); }
         if (aba === 'correcao') carregarPendentes();
         if (aba === 'aluno') carregarAvaliacoesAluno();
+        if (aba === 'relatorios') inicializarRelatorios();
     }
 
     async function fazerLogin() {
@@ -313,10 +479,10 @@
         if (resp.ok) {
             usuarioLogado = data;
             atualizarMenuPorPerfil();
-            box.innerHTML = `<div class="msg msg-ok">Bem-vindo(a), ${data.nome}!</div>`;
+            box.innerHTML = `<div class="msg msg-ok">Bem-vindo(a), ${escaparHtml(data.nome)}!</div>`;
             mostrarAba(data.perfil === 'PROFESSOR' ? 'questoes' : 'aluno');
         } else {
-            box.innerHTML = `<div class="msg msg-err">${data.erro}</div>`;
+            box.innerHTML = `<div class="msg msg-err">${escaparHtml(extrairErro(data, 'Falha na autenticação.'))}</div>`;
         }
     }
 
@@ -338,10 +504,10 @@
         document.getElementById('lista-questoes').innerHTML = questoes.map(q => `
             <tr>
                 <td>${q.idQuestao}</td>
-                <td><span class="badge ${q.tipo === 'MULTIPLA_ESCOLHA' ? 'badge-me' : 'badge-tl'}">${q.tipo}</span></td>
-                <td>${q.disciplina}</td>
-                <td>${q.enunciado}</td>
-                <td>${q.nomeProfessor}</td>
+                <td><span class="badge ${q.tipo === 'MULTIPLA_ESCOLHA' ? 'badge-me' : 'badge-tl'}">${escaparHtml(q.tipo)}</span></td>
+                <td>${escaparHtml(q.disciplina)}</td>
+                <td>${escaparHtml(q.enunciado)}</td>
+                <td>${escaparHtml(q.nomeProfessor)}</td>
                 <td><button class="btn-del" onclick="excluirQuestao(${q.idQuestao})">Excluir</button></td>
             </tr>
         `).join('');
@@ -352,21 +518,37 @@
         const resp = await fetch(`/api/questoes/${id}?idUsuario=${usuarioLogado.idUsuario}`, { method: 'DELETE' });
         const data = await resp.json();
         const box = document.getElementById('q-del-msg');
-        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${data.mensagem || data.erro}</div>`;
+        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${escaparHtml(data.mensagem || extrairErro(data, 'Erro ao excluir questão.'))}</div>`;
         if (resp.ok) carregarQuestoes();
     }
 
     async function salvarQuestao() {
         const tipo = document.getElementById('q-tipo').value;
-        const disciplina = document.getElementById('q-disciplina').value;
-        const enunciado = document.getElementById('q-enunciado').value;
+        const disciplina = document.getElementById('q-disciplina').value.trim();
+        const enunciado = document.getElementById('q-enunciado').value.trim();
+        const box = document.getElementById('q-msg');
         let alternativas = [];
 
+        if (!enunciado || !disciplina) {
+            box.innerHTML = `<div class="msg msg-err">Preencha a disciplina e o enunciado da questão.</div>`;
+            return;
+        }
+
         if (tipo === 'MULTIPLA_ESCOLHA') {
-            const corretaIdx = parseInt(document.querySelector('input[name="alt-correta"]:checked').value);
-            document.querySelectorAll('.alt-texto').forEach((inp, idx) => {
+            const radioMarcado = document.querySelector('input[name="alt-correta"]:checked');
+            const corretaIdx = radioMarcado ? parseInt(radioMarcado.value) : -1;
+            const inputs = Array.from(document.querySelectorAll('.alt-texto'));
+            if (corretaIdx < 0 || !inputs[corretaIdx] || !inputs[corretaIdx].value.trim()) {
+                box.innerHTML = `<div class="msg msg-err">A alternativa marcada como correta deve estar preenchida.</div>`;
+                return;
+            }
+            inputs.forEach((inp, idx) => {
                 if (inp.value.trim()) alternativas.push({ texto: inp.value.trim(), correta: idx === corretaIdx });
             });
+            if (alternativas.length < 2) {
+                box.innerHTML = `<div class="msg msg-err">Preencha pelo menos 2 alternativas para a questão.</div>`;
+                return;
+            }
         }
 
         const resp = await fetch('/api/questoes', {
@@ -375,14 +557,13 @@
             body: JSON.stringify({ enunciado, tipo, disciplina, idProfessor: usuarioLogado.idUsuario, alternativas })
         });
         const data = await resp.json();
-        const box = document.getElementById('q-msg');
         if (resp.ok) {
             box.innerHTML = `<div class="msg msg-ok">Questão #${data.idQuestao} cadastrada com sucesso!</div>`;
             document.getElementById('q-enunciado').value = '';
             document.querySelectorAll('.alt-texto').forEach(i => i.value = '');
             carregarQuestoes();
         } else {
-            box.innerHTML = `<div class="msg msg-err">${data.erro}</div>`;
+            box.innerHTML = `<div class="msg msg-err">${escaparHtml(extrairErro(data, 'Erro ao cadastrar questão.'))}</div>`;
         }
     }
 
@@ -396,38 +577,69 @@
             <tr>
                 <td><input type="checkbox" class="chk-questao" value="${q.idQuestao}"></td>
                 <td>${q.idQuestao}</td>
-                <td>${q.enunciado}</td>
-                <td>${q.tipo}</td>
+                <td>${escaparHtml(q.enunciado)}</td>
+                <td>${escaparHtml(q.tipo)}</td>
                 <td><input type="number" step="0.5" min="0.5" value="2.0" id="val-q-${q.idQuestao}"></td>
             </tr>
         `).join('');
 
         document.getElementById('av-turma').innerHTML = '<option value="">-- Selecione uma turma (opcional) --</option>' +
-            turmas.map(t => `<option value="${t}">${t}</option>`).join('');
+            turmas.map(t => `<option value="${escaparHtml(t)}">${escaparHtml(t)}</option>`).join('');
         document.getElementById('av-alunos').innerHTML = alunos.map(a =>
-            `<option value="${a.idUsuario}">${a.nome} (${a.turma})</option>`
+            `<option value="${a.idUsuario}">${escaparHtml(a.nome)} (${escaparHtml(a.turma)})</option>`
         ).join('');
     }
 
     async function salvarAvaliacao() {
+        const box = document.getElementById('av-msg');
+        const titulo = document.getElementById('av-titulo').value.trim();
+        const descricao = document.getElementById('av-descricao').value.trim();
+        const dataAplicacao = document.getElementById('av-data').value;
+        const inicioVal = document.getElementById('av-inicio').value;
+        const fimVal = document.getElementById('av-fim').value;
+
+        if (!titulo || !dataAplicacao || !inicioVal || !fimVal) {
+            box.innerHTML = `<div class="msg msg-err">Preencha título, data, horário de início e horário de fim.</div>`;
+            return;
+        }
+
         const questoesSelecionadas = [];
         let ordem = 1;
+        let valorInvalido = false;
         document.querySelectorAll('.chk-questao:checked').forEach(chk => {
             const idQuestao = parseInt(chk.value);
             const valor = parseFloat(document.getElementById(`val-q-${idQuestao}`).value);
+            if (!Number.isFinite(valor) || valor <= 0) {
+                valorInvalido = true;
+            }
             questoesSelecionadas.push({ idQuestao, ordem: ordem++, valor });
         });
 
+        if (questoesSelecionadas.length === 0) {
+            box.innerHTML = `<div class="msg msg-err">Selecione ao menos uma questão para a avaliação.</div>`;
+            return;
+        }
+        if (valorInvalido) {
+            box.innerHTML = `<div class="msg msg-err">Todas as questões selecionadas devem ter valor maior que zero.</div>`;
+            return;
+        }
+
+        const turmaAtribuida = document.getElementById('av-turma').value;
         const alunosIds = Array.from(document.getElementById('av-alunos').selectedOptions).map(opt => parseInt(opt.value));
+        if (!turmaAtribuida && alunosIds.length === 0) {
+            box.innerHTML = `<div class="msg msg-err">Selecione uma turma ou pelo menos um aluno para responder à avaliação.</div>`;
+            return;
+        }
+
         const payload = {
-            titulo: document.getElementById('av-titulo').value,
-            descricao: document.getElementById('av-descricao').value,
-            dataAplicacao: document.getElementById('av-data').value,
-            horaInicio: document.getElementById('av-inicio').value + ':00',
-            horaFim: document.getElementById('av-fim').value + ':00',
+            titulo,
+            descricao,
+            dataAplicacao,
+            horaInicio: inicioVal.length === 5 ? inicioVal + ':00' : inicioVal,
+            horaFim: fimVal.length === 5 ? fimVal + ':00' : fimVal,
             idProfessor: usuarioLogado.idUsuario,
             questoes: questoesSelecionadas,
-            turmaAtribuida: document.getElementById('av-turma').value,
+            turmaAtribuida,
             alunosIds
         };
 
@@ -437,12 +649,16 @@
             body: JSON.stringify(payload)
         });
         const data = await resp.json();
-        const box = document.getElementById('av-msg');
         if (resp.ok) {
             box.innerHTML = `<div class="msg msg-ok">Avaliação #${data.idAvaliacao} criada com sucesso!</div>`;
+            document.getElementById('av-titulo').value = '';
+            document.getElementById('av-descricao').value = '';
+            document.querySelectorAll('.chk-questao:checked').forEach(chk => chk.checked = false);
+            document.getElementById('av-turma').value = '';
+            Array.from(document.getElementById('av-alunos').options).forEach(o => o.selected = false);
             carregarAvaliacoes();
         } else {
-            box.innerHTML = `<div class="msg msg-err">${data.erro}</div>`;
+            box.innerHTML = `<div class="msg msg-err">${escaparHtml(extrairErro(data, 'Erro ao criar avaliação.'))}</div>`;
         }
     }
 
@@ -452,8 +668,8 @@
         document.getElementById('lista-avaliacoes').innerHTML = avaliacoes.map(a => `
             <tr>
                 <td>${a.idAvaliacao}</td>
-                <td><strong>${a.titulo}</strong><br><small>${a.descricao || ''}</small></td>
-                <td>${a.dataAplicacao} (${a.horaInicio} - ${a.horaFim})</td>
+                <td><strong>${escaparHtml(a.titulo)}</strong><br><small>${escaparHtml(a.descricao || '')}</small></td>
+                <td>${escaparHtml(a.dataAplicacao)} (${escaparHtml(a.horaInicio)} - ${escaparHtml(a.horaFim)})</td>
                 <td>${a.totalQuestoes}</td>
                 <td>${Number(a.valorTotal).toFixed(2)} pts</td>
                 <td>${a.totalAlunos}</td>
@@ -467,7 +683,7 @@
         const resp = await fetch(`/api/avaliacoes/${id}?idUsuario=${usuarioLogado.idUsuario}`, { method: 'DELETE' });
         const data = await resp.json();
         const box = document.getElementById('av-del-msg');
-        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${data.mensagem || data.erro}</div>`;
+        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${escaparHtml(data.mensagem || extrairErro(data, 'Erro ao excluir avaliação.'))}</div>`;
         if (resp.ok) carregarAvaliacoes();
     }
 
@@ -482,9 +698,9 @@
         }
         box.innerHTML = pendentes.map(p => `
             <div class="questao-prova">
-                <div><strong>Avaliação:</strong> ${p.tituloAvaliacao} | <strong>Aluno:</strong> ${p.nomeAluno} (${p.turmaAluno})</div>
-                <p><strong>Enunciado (Valor máximo: ${Number(p.valorMaximo).toFixed(2)} pts):</strong> ${p.enunciado}</p>
-                <p style="background:#fff; padding:10px; border-radius:6px; border:1px solid #d1d5db;"><strong>Resposta do Aluno:</strong><br>${p.textoResposta || '<em>(Em branco)</em>'}</p>
+                <div><strong>Avaliação:</strong> ${escaparHtml(p.tituloAvaliacao)} | <strong>Aluno:</strong> ${escaparHtml(p.nomeAluno)} (${escaparHtml(p.turmaAluno)})</div>
+                <p><strong>Enunciado (Valor máximo: ${Number(p.valorMaximo).toFixed(2)} pts):</strong> ${escaparHtml(p.enunciado)}</p>
+                <p style="background:#fff; padding:10px; border-radius:6px; border:1px solid #d1d5db;"><strong>Resposta do Aluno:</strong><br>${p.textoResposta ? escaparHtml(p.textoResposta) : '<em>(Em branco)</em>'}</p>
                 <div style="display:flex; gap:10px; align-items:center;">
                     <input type="number" step="0.25" min="0" max="${p.valorMaximo}" id="nota-resp-${p.idResposta}" placeholder="Nota (0 a ${p.valorMaximo})" style="width:180px;">
                     <button class="btn" style="margin-top:0;" onclick="salvarNotaDiscursiva(${p.idResposta})">Lançar Nota</button>
@@ -498,11 +714,11 @@
         const resp = await fetch(`/api/respostas/${idResposta}/corrigir`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idProfessor: usuarioLogado.idUsuario, nota })
+            body: JSON.stringify({ idProfessor: usuarioLogado.idUsuario, nota: Number.isFinite(nota) ? nota : null })
         });
         const data = await resp.json();
         const box = document.getElementById('corr-msg');
-        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${data.mensagem || data.erro}</div>`;
+        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${escaparHtml(data.mensagem || extrairErro(data, 'Erro ao registrar nota.'))}</div>`;
         if (resp.ok) carregarPendentes();
     }
 
@@ -510,37 +726,45 @@
     async function carregarAvaliacoesAluno() {
         const resp = await fetch(`/api/avaliacoes/aluno/${usuarioLogado.idUsuario}`);
         const lista = await resp.json();
-        document.getElementById('lista-avaliacoes-aluno').innerHTML = lista.map(a => `
+        lista.forEach(a => { mapaTitulosAvaliacoes[a.idAvaliacao] = a.titulo; });
+        document.getElementById('lista-avaliacoes-aluno').innerHTML = lista.length === 0
+            ? '<tr><td colspan="6">Nenhuma avaliação atribuída a você no momento.</td></tr>'
+            : lista.map(a => `
             <tr>
                 <td>${a.idAvaliacao}</td>
-                <td><strong>${a.titulo}</strong><br><small>${a.descricao || ''}</small></td>
-                <td>${a.dataAplicacao} (${a.horaInicio} - ${a.horaFim})</td>
-                <td><span class="badge ${a.statusAluno === 'PENDENTE' ? 'badge-tl' : 'badge-ok'}">${a.statusAluno}</span></td>
+                <td><strong>${escaparHtml(a.titulo)}</strong><br><small>${escaparHtml(a.descricao || '')}</small></td>
+                <td>${escaparHtml(a.dataAplicacao)} (${escaparHtml(a.horaInicio)} - ${escaparHtml(a.horaFim)})</td>
+                <td><span class="badge ${a.statusAluno === 'PENDENTE' ? 'badge-tl' : 'badge-ok'}">${escaparHtml(a.statusAluno)}</span></td>
                 <td>${Number(a.notaFinal).toFixed(2)} / ${Number(a.valorTotal).toFixed(2)} pts</td>
                 <td>
                     ${a.statusAluno === 'PENDENTE'
             ? `<button class="btn" style="margin-top:0; padding:6px 12px;" onclick="abrirProva(${a.idAvaliacao})">Realizar Prova</button>`
-            : `<button class="btn-sec" onclick="verBoletim(${a.idAvaliacao}, '${a.titulo}')">Ver Correção</button>`}
+            : `<button class="btn-sec" onclick="verBoletim(${a.idAvaliacao})">Ver Correção</button>`}
                 </td>
             </tr>
         `).join('');
     }
 
     async function abrirProva(idAvaliacao) {
+        document.getElementById('aluno-msg').innerHTML = '';
         const resp = await fetch(`/api/avaliacoes/${idAvaliacao}?modoAluno=true`);
         const av = await resp.json();
+        if (!resp.ok) {
+            document.getElementById('aluno-msg').innerHTML = `<div class="msg msg-err">${escaparHtml(extrairErro(av, 'Erro ao abrir avaliação.'))}</div>`;
+            return;
+        }
         avaliacaoEmAndamento = av;
         document.getElementById('titulo-prova-atual').textContent = `Realizando: ${av.titulo}`;
         document.getElementById('box-boletim-aluno').classList.add('hidden');
 
         document.getElementById('corpo-prova').innerHTML = av.questoes.map((q, idx) => `
             <div class="questao-prova">
-                <p><strong>${idx + 1}. (${Number(q.valor).toFixed(2)} pts)</strong> ${q.enunciado}</p>
+                <p><strong>${idx + 1}. (${Number(q.valor).toFixed(2)} pts)</strong> ${escaparHtml(q.enunciado)}</p>
                 ${q.tipo === 'MULTIPLA_ESCOLHA'
             ? q.alternativas.map(alt => `
                         <label style="font-weight:400; margin-bottom:6px; cursor:pointer;">
                             <input type="radio" name="resp-q-${q.idQuestao}" value="${alt.idAlternativa}" style="width:auto; margin-right:6px;">
-                            ${alt.texto}
+                            ${escaparHtml(alt.texto)}
                         </label>
                     `).join('')
             : `<textarea id="resp-txt-${q.idQuestao}" rows="3" placeholder="Escreva sua resposta discursiva..."></textarea>`
@@ -563,9 +787,13 @@
         for (const q of avaliacaoEmAndamento.questoes) {
             if (q.tipo === 'MULTIPLA_ESCOLHA') {
                 const marcada = document.querySelector(`input[name="resp-q-${q.idQuestao}"]:checked`);
+                if (!marcada) {
+                    box.innerHTML = `<div class="msg msg-err">Selecione uma alternativa para todas as questões de múltipla escolha antes de enviar.</div>`;
+                    return;
+                }
                 respostas.push({
                     idQuestao: q.idQuestao,
-                    idAlternativaEscolhida: marcada ? parseInt(marcada.value) : null
+                    idAlternativaEscolhida: parseInt(marcada.value)
                 });
             } else {
                 const campoTexto = document.getElementById(`resp-txt-${q.idQuestao}`);
@@ -592,27 +820,232 @@
             })
         });
         const data = await resp.json();
-        const textoMsg = data.mensagem || data.erro || data.error || 'Erro ao processar envio.';
-        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${textoMsg}</div>`;
+        const textoMsg = data.mensagem || extrairErro(data, 'Erro ao processar envio.');
+        box.innerHTML = `<div class="msg ${resp.ok ? 'msg-ok' : 'msg-err'}">${escaparHtml(textoMsg)}</div>`;
         if (resp.ok) {
             fecharCaixaProva();
             carregarAvaliacoesAluno();
         }
     }
 
-    async function verBoletim(idAvaliacao, titulo) {
+    async function verBoletim(idAvaliacao) {
+        const titulo = mapaTitulosAvaliacoes[idAvaliacao] || `Avaliação #${idAvaliacao}`;
         const resp = await fetch(`/api/respostas/boletim?idAvaliacao=${idAvaliacao}&idAluno=${usuarioLogado.idUsuario}`);
         const itens = await resp.json();
         document.getElementById('titulo-boletim').textContent = `Boletim: ${titulo}`;
         document.getElementById('corpo-boletim').innerHTML = itens.map((r, i) => `
             <tr>
-                <td><strong>${i + 1}.</strong> ${r.enunciado}</td>
-                <td>${r.tipoQuestao === 'MULTIPLA_ESCOLHA' ? (r.textoAlternativaEscolhida || '<em>Não respondida</em>') : (r.textoResposta || '<em>Em branco</em>')}</td>
+                <td><strong>${i + 1}.</strong> ${escaparHtml(r.enunciado)}</td>
+                <td>${r.tipoQuestao === 'MULTIPLA_ESCOLHA'
+                    ? (r.textoAlternativaEscolhida ? escaparHtml(r.textoAlternativaEscolhida) : '<em>Não respondida</em>')
+                    : (r.textoResposta ? escaparHtml(r.textoResposta) : '<em>Em branco</em>')}</td>
                 <td>${r.corrigida ? '<span class="badge badge-ok">Corrigida</span>' : '<span class="badge badge-tl">Aguardando professor</span>'}</td>
-                <td><strong>${Number(r.notaObtida).toFixed(2)}</strong> / ${Number(r.valorMaximo).toFixed(2)}</td>
+                <td><strong>${r.notaObtida !== null && r.notaObtida !== undefined ? Number(r.notaObtida).toFixed(2) : '-'}</strong> / ${Number(r.valorMaximo).toFixed(2)}</td>
             </tr>
         `).join('');
         document.getElementById('box-boletim-aluno').classList.remove('hidden');
+    }
+
+    // --- RF7: RELATÓRIOS COM TABELAS E GRÁFICOS ---
+    function renderizarGrafico(idCanvas, config) {
+        if (typeof Chart === 'undefined') return;
+        if (graficos[idCanvas]) {
+            graficos[idCanvas].destroy();
+        }
+        const ctx = document.getElementById(idCanvas).getContext('2d');
+        graficos[idCanvas] = new Chart(ctx, config);
+    }
+
+    async function inicializarRelatorios() {
+        const isProf = usuarioLogado && usuarioLogado.perfil === 'PROFESSOR';
+        document.getElementById('card-rel-1').classList.toggle('hidden', !isProf);
+        document.getElementById('card-rel-3').classList.toggle('hidden', !isProf);
+        document.getElementById('card-rel-4').classList.toggle('hidden', !isProf);
+        document.getElementById('filtro-aluno-rel2').classList.toggle('hidden', !isProf);
+
+        if (isProf) {
+            const [tResp, aResp] = await Promise.all([fetch('/api/turmas'), fetch('/api/alunos')]);
+            const turmas = await tResp.json();
+            const alunos = await aResp.json();
+
+            document.getElementById('rel-turma').innerHTML = '<option value="">Todas as turmas</option>' +
+                turmas.map(t => `<option value="${t}">${t}</option>`).join('');
+            document.getElementById('rel-aluno-select').innerHTML = alunos.map(a =>
+                `<option value="${a.idUsuario}">${a.nome} (${a.turma})</option>`
+            ).join('');
+
+            await Promise.all([
+                carregarRelatorio1(),
+                carregarRelatorio2(),
+                carregarRelatorio3(),
+                carregarRelatorio4()
+            ]);
+        } else {
+            document.getElementById('rel-aluno-select').innerHTML =
+                `<option value="${usuarioLogado.idUsuario}">${usuarioLogado.nome}</option>`;
+            await carregarRelatorio2();
+        }
+    }
+
+    async function carregarRelatorio1() {
+        const ini = document.getElementById('rel-dt-ini').value;
+        const fim = document.getElementById('rel-dt-fim').value;
+        const turma = document.getElementById('rel-turma').value;
+        const params = new URLSearchParams();
+        if (ini) params.append('dataInicio', ini);
+        if (fim) params.append('dataFim', fim);
+        if (turma) params.append('turma', turma);
+
+        const resp = await fetch(`/api/relatorios/media-avaliacoes?${params.toString()}`);
+        const dados = await resp.json();
+
+        document.getElementById('tb-rel-1').innerHTML = dados.length === 0
+            ? '<tr><td colspan="6">Nenhuma avaliação com entregas encontrada para os filtros selecionados.</td></tr>'
+            : dados.map(d => `
+            <tr>
+                <td>${escaparHtml(d.titulo)}</td>
+                <td>${escaparHtml(d.dataAplicacao)}</td>
+                <td>${d.qtdEntregas}</td>
+                <td><strong>${Number(d.mediaNotas).toFixed(2)}</strong></td>
+                <td>${Number(d.valorMaximo).toFixed(2)}</td>
+                <td>${Number(d.percentualAproveitamento || 0).toFixed(1)}%</td>
+            </tr>
+        `).join('');
+
+        renderizarGrafico('chart-rel-1', {
+            type: 'bar',
+            data: {
+                labels: dados.map(d => d.titulo),
+                datasets: [
+                    { label: 'Média Obtida (pts)', data: dados.map(d => d.mediaNotas), backgroundColor: '#15803d' },
+                    { label: 'Valor Máximo (pts)', data: dados.map(d => d.valorMaximo), backgroundColor: '#cbd5e1' }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    async function carregarRelatorio2() {
+        const idAluno = document.getElementById('rel-aluno-select').value || usuarioLogado.idUsuario;
+        const resp = await fetch(`/api/relatorios/desempenho-aluno/${idAluno}`);
+        const dados = await resp.json();
+
+        document.getElementById('tb-rel-2').innerHTML = dados.length === 0
+            ? '<tr><td colspan="6">Nenhuma avaliação respondida por este aluno ainda.</td></tr>'
+            : dados.map(d => `
+            <tr>
+                <td>${escaparHtml(d.titulo)}</td>
+                <td>${escaparHtml(d.dataAplicacao)}</td>
+                <td>${escaparHtml(d.turma)}</td>
+                <td><strong>${Number(d.notaAluno).toFixed(2)}</strong></td>
+                <td>${Number(d.mediaTurma).toFixed(2)}</td>
+                <td>${Number(d.valorMaximo).toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        const labels = dados.map(d => d.titulo);
+        const notasAluno = dados.map(d => d.notaAluno);
+        const mediasTurma = dados.map(d => d.mediaTurma);
+
+        renderizarGrafico('chart-rel-2-barras', {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Nota do Aluno', data: notasAluno, backgroundColor: '#1d4ed8' },
+                    { label: 'Média da Turma', data: mediasTurma, backgroundColor: '#f59e0b' }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Aluno vs. Média da Turma (Barras)' } }, scales: { y: { beginAtZero: true } } }
+        });
+
+        renderizarGrafico('chart-rel-2-linha', {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'Evolução da Nota do Aluno', data: notasAluno, borderColor: '#15803d', backgroundColor: 'rgba(21,128,61,0.15)', fill: true, tension: 0.25 },
+                    { label: 'Evolução da Média da Turma', data: mediasTurma, borderColor: '#9ca3af', borderDash: [5, 5], tension: 0.25 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Evolução Temporal (Linha)' } }, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    async function carregarRelatorio3() {
+        const resp = await fetch('/api/relatorios/ranking-questoes-erradas');
+        const dados = await resp.json();
+
+        document.getElementById('tb-rel-3').innerHTML = dados.length === 0
+            ? '<tr><td colspan="6">Nenhuma questão corrigida encontrada.</td></tr>'
+            : dados.map(d => {
+                const texto = d.enunciado || '';
+                const resumo = texto.length > 55 ? texto.substring(0, 55) + '...' : texto;
+                return `
+            <tr>
+                <td><strong>#${d.posicao}</strong></td>
+                <td>${d.idQuestao}</td>
+                <td>${escaparHtml(resumo)}</td>
+                <td>${d.totalRespostas}</td>
+                <td>${Number(d.percentualAcerto).toFixed(1)}%</td>
+                <td><strong style="color:#dc2626;">${Number(d.percentualErro).toFixed(1)}%</strong></td>
+            </tr>
+        `;
+            }).join('');
+
+        renderizarGrafico('chart-rel-3', {
+            type: 'bar',
+            data: {
+                labels: dados.map(d => `Q#${d.idQuestao}`),
+                datasets: [{
+                    label: 'Índice de Erro (%)',
+                    data: dados.map(d => d.percentualErro),
+                    backgroundColor: '#dc2626'
+                }]
+            },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, max: 100 } } }
+        });
+    }
+
+    async function carregarRelatorio4() {
+        const resp = await fetch('/api/relatorios/participacao');
+        const payload = await resp.json();
+        const resumo = payload.resumo || [];
+        const pendentes = payload.pendentes || [];
+
+        document.getElementById('tb-rel-4').innerHTML = resumo.map(r => `
+            <tr>
+                <td>${escaparHtml(r.titulo)}</td>
+                <td>${escaparHtml(r.dataAplicacao)}</td>
+                <td>${r.totalAtribuidos}</td>
+                <td>${r.totalRespondidas}</td>
+                <td><strong>${r.totalPendentes}</strong></td>
+            </tr>
+        `).join('');
+
+        document.getElementById('tb-rel-4-pendentes').innerHTML = pendentes.length === 0
+            ? '<tr><td colspan="5">Nenhum aluno pendente encontrado.</td></tr>'
+            : pendentes.map(p => `
+                <tr>
+                    <td>${escaparHtml(p.avaliacao)}</td>
+                    <td>${escaparHtml(p.dataAplicacao)}</td>
+                    <td>${escaparHtml(p.aluno)}</td>
+                    <td>${escaparHtml(p.turma)}</td>
+                    <td><span class="badge badge-tl">${escaparHtml(p.status)}</span></td>
+                </tr>
+            `).join('');
+
+        renderizarGrafico('chart-rel-4', {
+            type: 'bar',
+            data: {
+                labels: resumo.map(r => r.titulo),
+                datasets: [
+                    { label: 'Respondidas', data: resumo.map(r => r.totalRespondidas), backgroundColor: '#15803d' },
+                    { label: 'Pendentes (Não responderam)', data: resumo.map(r => r.totalPendentes), backgroundColor: '#f59e0b' }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+        });
     }
 </script>
 </body>
