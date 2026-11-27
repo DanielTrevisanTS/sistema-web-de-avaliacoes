@@ -126,7 +126,7 @@ LEFT JOIN avaliacao_usuario au ON au.id_avaliacao = a.id_avaliacao
 GROUP BY a.id_avaliacao, a.titulo, a.data_aplicacao
 ORDER BY total_pendentes DESC, a.data_aplicacao ASC;
 
-
+-- Alunos pendentes por avaliação
 SELECT
     a.titulo AS avaliacao,
     a.data_aplicacao,
